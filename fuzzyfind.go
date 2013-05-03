@@ -13,6 +13,11 @@ var query = flag.String("query", "", "The query")
 var dir = flag.String("dir", "", "Directory to search in")
 var exclude = flag.String("exclude", "", "Sub directories to exclude from search")
 
+type File struct {
+  Name string
+  Path string
+}
+
 func queryToSearchPattern(query string) string {
   tokens := strings.Split(query, "")
   pattern := strings.Join(tokens, ".*")
@@ -47,7 +52,8 @@ func main () {
       match, _ := regexp.MatchString(searchPattern, relPath)
 
       if match {
-        fmt.Println(relPath)
+        file := File{Name: filepath.Base(path), Path: path }
+        fmt.Printf("%s\n", file)
       }
     } else {
       match, _ := regexp.MatchString(excludePattern, path)
