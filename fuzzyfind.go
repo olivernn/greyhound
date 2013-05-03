@@ -11,8 +11,9 @@ import (
 
 var query = flag.String("query", "", "The query")
 var dir = flag.String("dir", "", "Directory to search in")
+var exclude = flag.String("exclude", "", "Sub directories to exclude from search")
 
-func stringToPattern(query string) string {
+func queryToSearchPattern(query string) string {
   tokens := strings.Split(query, "")
   pattern := strings.Join(tokens, ".*")
   pattern = ".*" + pattern + ".*"
@@ -28,25 +29,30 @@ func getSearchDir (dir string) string {
   return dir
 }
 
+func excludeToExcludePattern (exclude string) string {
+  pattern := strings.Replace(exclude, ",", "|", -1)
+  return pattern
+}
+
 func main () {
   flag.Parse()
 
-  pattern := stringToPattern(*query)
-
+  searchPattern := queryToSearchPattern(*query)
   searchDir := getSearchDir(*dir)
+  excludePattern := excludeToExcludePattern(*exclude)
 
   visit := func(path string, info os.FileInfo, err error) error {
     if !info.IsDir() {
       relPath, _ := filepath.Rel(searchDir, path)
-      match, _ := regexp.MatchString(pattern, relPath)
+      match, _ := regexp.MatchString(searchPattern, relPath)
 
       if match {
         fmt.Println(relPath)
       }
     } else {
-      match, _ := regexp.MatchString(".git", path)
+      match, _ := regexp.MatchString(excludePattern, path)
 
-      if match {
+      if len(excludePattern) > 0 && match {
         return filepath.SkipDir
       }
     }
