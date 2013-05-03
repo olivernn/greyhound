@@ -41,29 +41,63 @@ func excludeToExcludePattern (exclude string) string {
   return pattern
 }
 
-func printFiles (fileChannel chan File) {
+func filterFiles (query string, fileChannel chan File) {
+  exactMatches := make([]File, 0)
+  nameMatches := make([]File, 0)
+  pathMatches := make([]File, 0)
+
+  pattern := queryToSearchPattern(query)
+
   for {
     file, ok := <- fileChannel
 
     if !ok {
-      return
+      break
     }
 
-    fmt.Printf("%s\n", file)
+    exactMatch, _ := regexp.MatchString(query, file.Name)
+
+    if exactMatch {
+      exactMatches = append(exactMatches, file)
+      continue
+    }
+
+    nameMatch, _ := regexp.MatchString(pattern, file.Name)
+
+    if nameMatch {
+      nameMatches = append(nameMatches, file)
+      continue
+    }
+
+    pathMatch, _ := regexp.MatchString(pattern, file.Path)
+
+    if pathMatch {
+      pathMatches = append(pathMatches, file)
+      continue
+    }
+  }
+
+  for _, file := range exactMatches {
+    fmt.Println(file.Path)
+  }
+
+  for _, file := range nameMatches {
+    fmt.Println(file.Path)
+  }
+
+  for _, file := range pathMatches {
+    fmt.Println(file.Path)
   }
 }
 
-func walkDir (dir string, pattern string, exclude string, fileChannel chan File) {
+func walkDir (dir string, exclude string, fileChannel chan File) {
 
   visit := func(path string, info os.FileInfo, err error) error {
     if !info.IsDir() {
       relPath, _ := filepath.Rel(dir, path)
-      match, _ := regexp.MatchString(pattern, relPath)
+      file := &File{Name: filepath.Base(path), Path: relPath }
+      fileChannel <- *file
 
-      if match {
-        file := &File{Name: filepath.Base(path), Path: path }
-        fileChannel <- *file
-      }
     } else {
       match, _ := regexp.MatchString(exclude, path)
 
@@ -82,13 +116,12 @@ func walkDir (dir string, pattern string, exclude string, fileChannel chan File)
 func main () {
   flag.Parse()
 
-  searchPattern := queryToSearchPattern(*query)
   searchDir := getSearchDir(*dir)
   excludePattern := excludeToExcludePattern(*exclude)
 
   fileChannel := make(FileChan)
 
-  go walkDir (searchDir, searchPattern, excludePattern, fileChannel)
+  go walkDir (searchDir, excludePattern, fileChannel)
 
-  printFiles(fileChannel)
+  filterFiles(*query, fileChannel)
 }
