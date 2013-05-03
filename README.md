@@ -14,6 +14,4 @@ Fast fuzzy filepath finder.
 
 ## Ctrl-P Integration
 
-Update your `.vimrc` adding the config found in this [gist]()
-
-TODO: update this @claudio
+Update your `.vimrc` adding the config found in this [gist](https://gist.github.com/cloud8421/5510765)
