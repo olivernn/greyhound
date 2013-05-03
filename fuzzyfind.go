@@ -7,6 +7,7 @@ import (
   "path/filepath"
   "regexp"
   "strings"
+  "sort"
 )
 
 var query = flag.String("query", "", "The query")
@@ -19,6 +20,28 @@ type File struct {
 }
 
 type FileChan chan File
+
+type Files []File
+
+func (f Files) Len () int {
+  return len(f)
+}
+
+func (f Files) Swap (i, j int) {
+  f[i], f[j] = f[j], f[i]
+}
+
+func printFiles (files []File) {
+  for _, file := range files {
+    fmt.Println(file.Path)
+  }
+}
+
+type ByPathLength struct{ Files }
+
+func (s ByPathLength) Less (i, j int) bool {
+  return len(s.Files[i].Path) < len(s.Files[j].Path)
+}
 
 func queryToSearchPattern(query string) string {
   tokens := strings.Split(query, "")
@@ -77,17 +100,14 @@ func filterFiles (query string, fileChannel chan File) {
     }
   }
 
-  for _, file := range exactMatches {
-    fmt.Println(file.Path)
-  }
+  sort.Sort(ByPathLength{exactMatches})
+  printFiles(exactMatches)
 
-  for _, file := range nameMatches {
-    fmt.Println(file.Path)
-  }
+  sort.Sort(ByPathLength{nameMatches})
+  printFiles(nameMatches)
 
-  for _, file := range pathMatches {
-    fmt.Println(file.Path)
-  }
+  sort.Sort(ByPathLength{pathMatches})
+  printFiles(pathMatches)
 }
 
 func walkDir (dir string, exclude string, fileChannel chan File) {
