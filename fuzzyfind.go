@@ -10,6 +10,7 @@ import (
 )
 
 var query = flag.String("query", "", "The query")
+var dir = flag.String("dir", "", "Directory to search in")
 
 func stringToPattern(query string) string {
   tokens := strings.Split(query, "")
@@ -18,14 +19,25 @@ func stringToPattern(query string) string {
   return pattern
 }
 
+func getSearchDir (dir string) string {
+  if len(dir) == 0 {
+    wd, _ := os.Getwd()
+    return wd
+  }
+
+  return dir
+}
+
 func main () {
   flag.Parse()
 
   pattern := stringToPattern(*query)
 
+  searchDir := getSearchDir(*dir)
+
   visit := func(path string, info os.FileInfo, err error) error {
     if !info.IsDir() {
-      relPath, _ := filepath.Rel("/Users/olivernightingale/code/lunr.js", path)
+      relPath, _ := filepath.Rel(searchDir, path)
       match, _ := regexp.MatchString(pattern, relPath)
 
       if match {
@@ -42,5 +54,5 @@ func main () {
     return nil
   }
 
-  filepath.Walk("/Users/olivernightingale/code/lunr.js", visit)
+  filepath.Walk(searchDir, visit)
 }
