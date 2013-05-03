@@ -18,6 +18,8 @@ type File struct {
   Path string
 }
 
+type FileChan chan File
+
 func queryToSearchPattern(query string) string {
   tokens := strings.Split(query, "")
   pattern := strings.Join(tokens, ".*")
@@ -39,26 +41,33 @@ func excludeToExcludePattern (exclude string) string {
   return pattern
 }
 
-func main () {
-  flag.Parse()
+func printFiles (fileChannel chan File) {
+  for {
+    file, ok := <- fileChannel
 
-  searchPattern := queryToSearchPattern(*query)
-  searchDir := getSearchDir(*dir)
-  excludePattern := excludeToExcludePattern(*exclude)
+    if !ok {
+      return
+    }
+
+    fmt.Printf("%s\n", file)
+  }
+}
+
+func walkDir (dir string, pattern string, exclude string, fileChannel chan File) {
 
   visit := func(path string, info os.FileInfo, err error) error {
     if !info.IsDir() {
-      relPath, _ := filepath.Rel(searchDir, path)
-      match, _ := regexp.MatchString(searchPattern, relPath)
+      relPath, _ := filepath.Rel(dir, path)
+      match, _ := regexp.MatchString(pattern, relPath)
 
       if match {
-        file := File{Name: filepath.Base(path), Path: path }
-        fmt.Printf("%s\n", file)
+        file := &File{Name: filepath.Base(path), Path: path }
+        fileChannel <- *file
       }
     } else {
-      match, _ := regexp.MatchString(excludePattern, path)
+      match, _ := regexp.MatchString(exclude, path)
 
-      if len(excludePattern) > 0 && match {
+      if len(exclude) > 0 && match {
         return filepath.SkipDir
       }
     }
@@ -66,5 +75,20 @@ func main () {
     return nil
   }
 
-  filepath.Walk(searchDir, visit)
+  filepath.Walk(dir, visit)
+  close(fileChannel)
+}
+
+func main () {
+  flag.Parse()
+
+  searchPattern := queryToSearchPattern(*query)
+  searchDir := getSearchDir(*dir)
+  excludePattern := excludeToExcludePattern(*exclude)
+
+  fileChannel := make(FileChan)
+
+  go walkDir (searchDir, searchPattern, excludePattern, fileChannel)
+
+  printFiles(fileChannel)
 }
