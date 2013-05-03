@@ -8,6 +8,7 @@ import (
   "regexp"
   "strings"
   "sort"
+  "sync"
 )
 
 var query = flag.String("query", "", "The query")
@@ -100,13 +101,29 @@ func filterFiles (query string, fileChannel chan File) {
     }
   }
 
-  sort.Sort(ByPathLength{exactMatches})
+  var wg sync.WaitGroup
+
+  wg.Add(3)
+
+  go func () {
+    sort.Sort(ByPathLength{exactMatches})
+    wg.Done()
+  }()
+
+  go func () {
+    sort.Sort(ByPathLength{nameMatches})
+    wg.Done()
+  }()
+
+  go func () {
+    sort.Sort(ByPathLength{pathMatches})
+    wg.Done()
+  }()
+
+  wg.Wait()
+
   printFiles(exactMatches)
-
-  sort.Sort(ByPathLength{nameMatches})
   printFiles(nameMatches)
-
-  sort.Sort(ByPathLength{pathMatches})
   printFiles(pathMatches)
 }
 
