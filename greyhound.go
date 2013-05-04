@@ -11,6 +11,24 @@ import (
 	"sync"
 )
 
+func main() {
+	flag.Parse()
+
+	if *help {
+		printUsage()
+		os.Exit(0)
+	}
+
+	searchDir := getSearchDir(*dir)
+	excludePattern := excludeToExcludePattern(*exclude)
+
+	fileChannel := make(FileChan)
+
+	go walkDir(searchDir, excludePattern, fileChannel)
+
+	filterFiles(*query, fileChannel)
+}
+
 var help = flag.Bool("help", false, "Shows this message.")
 var query = flag.String("query", "", "File path pattern to search for.")
 var dir = flag.String("dir", "", "Directory to search in.")
@@ -155,22 +173,4 @@ func printUsage() {
 	fmt.Println("greyhound: Fast fuzzy filepath finder.\n")
 	flag.PrintDefaults()
 	fmt.Println("\n e.g. greyhound --query test --exclude .git,.svn --dir ~/code/project")
-}
-
-func main() {
-	flag.Parse()
-
-	if *help {
-		printUsage()
-		os.Exit(0)
-	}
-
-	searchDir := getSearchDir(*dir)
-	excludePattern := excludeToExcludePattern(*exclude)
-
-	fileChannel := make(FileChan)
-
-	go walkDir(searchDir, excludePattern, fileChannel)
-
-	filterFiles(*query, fileChannel)
 }
