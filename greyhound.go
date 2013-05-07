@@ -63,11 +63,23 @@ func (s ByPathLength) Less(i, j int) bool {
 	return len(s.Files[i].Path) < len(s.Files[j].Path)
 }
 
-func queryToSearchPattern(query string) string {
+func queryToExactMatcher(query string) *regexp.Regexp {
+	escaped := regexp.QuoteMeta(query)
+	regex := regexp.MustCompile("(?i)" + escaped)
+	return regex
+}
+
+func queryToSearchRegexp(query string) *regexp.Regexp {
 	tokens := strings.Split(query, "")
+
+	for idx, token := range tokens {
+		tokens[idx] = regexp.QuoteMeta(token)
+	}
+
 	pattern := strings.Join(tokens, ".*")
 	pattern = ".*" + pattern + ".*"
-	return pattern
+	regex := regexp.MustCompile("(?i)" + pattern)
+	return regex
 }
 
 func getSearchDir(dir string) string {
@@ -79,9 +91,11 @@ func getSearchDir(dir string) string {
 	return dir
 }
 
-func excludeToExcludePattern(exclude string) string {
-	pattern := strings.Replace(exclude, ",", "|", -1)
-	return pattern
+func excludeToExcludePattern(exclude string) *regexp.Regexp {
+	escaped := regexp.QuoteMeta(exclude)
+	pattern := strings.Replace(escaped, ",", "|", -1)
+	regex := regexp.MustCompile(pattern)
+	return regex
 }
 
 func filterFiles(query string, fileChannel chan File) {
@@ -89,7 +103,8 @@ func filterFiles(query string, fileChannel chan File) {
 	nameMatches := make([]File, 0)
 	pathMatches := make([]File, 0)
 
-	pattern := queryToSearchPattern(query)
+	pattern := queryToSearchRegexp(query)
+	exactMatcher := queryToExactMatcher(query)
 
 	for {
 		file, ok := <-fileChannel
@@ -98,21 +113,21 @@ func filterFiles(query string, fileChannel chan File) {
 			break
 		}
 
-		exactMatch, _ := regexp.MatchString(query, file.Name)
+		exactMatch := exactMatcher.MatchString(file.Name)
 
 		if exactMatch {
 			exactMatches = append(exactMatches, file)
 			continue
 		}
 
-		nameMatch, _ := regexp.MatchString(pattern, file.Name)
+		nameMatch := pattern.MatchString(file.Name)
 
 		if nameMatch {
 			nameMatches = append(nameMatches, file)
 			continue
 		}
 
-		pathMatch, _ := regexp.MatchString(pattern, file.Path)
+		pathMatch := pattern.MatchString(file.Path)
 
 		if pathMatch {
 			pathMatches = append(pathMatches, file)
@@ -146,7 +161,9 @@ func filterFiles(query string, fileChannel chan File) {
 	printFiles(pathMatches)
 }
 
-func walkDir(dir string, exclude string, fileChannel chan File) {
+func walkDir(dir string, exclude *regexp.Regexp, fileChannel chan File) {
+
+	hasExclude := len(exclude.String()) > 0
 
 	visit := func(path string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
@@ -155,9 +172,9 @@ func walkDir(dir string, exclude string, fileChannel chan File) {
 			fileChannel <- *file
 
 		} else {
-			match, _ := regexp.MatchString(exclude, path)
+			match := exclude.MatchString(path)
 
-			if len(exclude) > 0 && match {
+			if hasExclude && match {
 				return filepath.SkipDir
 			}
 		}
