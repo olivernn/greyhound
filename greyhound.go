@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"sync"
 )
 
@@ -20,7 +19,7 @@ func main() {
 	}
 
 	searchDir := getSearchDir(*dir)
-	excludePattern := excludeToExcludePattern(*exclude)
+	excludePattern := ExcludeMatcher(*exclude)
 
 	fileChannel := make(FileChan)
 
@@ -63,25 +62,6 @@ func (s ByPathLength) Less(i, j int) bool {
 	return len(s.Files[i].Path) < len(s.Files[j].Path)
 }
 
-func queryToExactMatcher(query string) *regexp.Regexp {
-	escaped := regexp.QuoteMeta(query)
-	regex := regexp.MustCompile("(?i)" + escaped)
-	return regex
-}
-
-func queryToSearchRegexp(query string) *regexp.Regexp {
-	tokens := strings.Split(query, "")
-
-	for idx, token := range tokens {
-		tokens[idx] = regexp.QuoteMeta(token)
-	}
-
-	pattern := strings.Join(tokens, ".*")
-	pattern = ".*" + pattern + ".*"
-	regex := regexp.MustCompile("(?i)" + pattern)
-	return regex
-}
-
 func getSearchDir(dir string) string {
 	if len(dir) == 0 {
 		wd, _ := os.Getwd()
@@ -91,20 +71,13 @@ func getSearchDir(dir string) string {
 	return dir
 }
 
-func excludeToExcludePattern(exclude string) *regexp.Regexp {
-	escaped := regexp.QuoteMeta(exclude)
-	pattern := strings.Replace(escaped, ",", "|", -1)
-	regex := regexp.MustCompile(pattern)
-	return regex
-}
-
 func filterFiles(query string, fileChannel chan File) {
 	exactMatches := make([]File, 0)
 	nameMatches := make([]File, 0)
 	pathMatches := make([]File, 0)
 
-	pattern := queryToSearchRegexp(query)
-	exactMatcher := queryToExactMatcher(query)
+	pattern := QueryMatcher(query)
+	exactMatcher := ExactQueryMatcher(query)
 
 	for {
 		file, ok := <-fileChannel
