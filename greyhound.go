@@ -6,9 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
-	"strings"
-	"sync"
 )
 
 func main() {
@@ -20,67 +17,24 @@ func main() {
 	}
 
 	searchDir := getSearchDir(*dir)
-	excludePattern := excludeToExcludePattern(*exclude)
+	excludePattern := ExcludeMatcher(*exclude)
 
 	fileChannel := make(FileChan)
+	scoredFileChannel := make(FileChan)
 
 	go walkDir(searchDir, excludePattern, fileChannel)
 
-	filterFiles(*query, fileChannel)
+	go scoreFiles(*query, fileChannel, scoredFileChannel)
+	filterFiles(scoredFileChannel)
 }
 
 var help = flag.Bool("help", false, "Shows this message.")
 var query = flag.String("query", "", "File path pattern to search for.")
 var dir = flag.String("dir", "", "Directory to search in.")
 var exclude = flag.String("exclude", "", "Sub directories to exclude from search.")
-
-type File struct {
-	Name string
-	Path string
-}
+var limit = flag.Int("limit", 10, "Limit the number of files returned.")
 
 type FileChan chan File
-
-type Files []File
-
-func (f Files) Len() int {
-	return len(f)
-}
-
-func (f Files) Swap(i, j int) {
-	f[i], f[j] = f[j], f[i]
-}
-
-func printFiles(files []File) {
-	for _, file := range files {
-		fmt.Println(file.Path)
-	}
-}
-
-type ByPathLength struct{ Files }
-
-func (s ByPathLength) Less(i, j int) bool {
-	return len(s.Files[i].Path) < len(s.Files[j].Path)
-}
-
-func queryToExactMatcher(query string) *regexp.Regexp {
-	escaped := regexp.QuoteMeta(query)
-	regex := regexp.MustCompile("(?i)" + escaped)
-	return regex
-}
-
-func queryToSearchRegexp(query string) *regexp.Regexp {
-	tokens := strings.Split(query, "")
-
-	for idx, token := range tokens {
-		tokens[idx] = regexp.QuoteMeta(token)
-	}
-
-	pattern := strings.Join(tokens, ".*")
-	pattern = ".*" + pattern + ".*"
-	regex := regexp.MustCompile("(?i)" + pattern)
-	return regex
-}
 
 func getSearchDir(dir string) string {
 	if len(dir) == 0 {
@@ -91,74 +45,57 @@ func getSearchDir(dir string) string {
 	return dir
 }
 
-func excludeToExcludePattern(exclude string) *regexp.Regexp {
-	escaped := regexp.QuoteMeta(exclude)
-	pattern := strings.Replace(escaped, ",", "|", -1)
-	regex := regexp.MustCompile(pattern)
-	return regex
-}
-
-func filterFiles(query string, fileChannel chan File) {
-	exactMatches := make([]File, 0)
-	nameMatches := make([]File, 0)
-	pathMatches := make([]File, 0)
-
-	pattern := queryToSearchRegexp(query)
-	exactMatcher := queryToExactMatcher(query)
+func filterFiles(fileChannel chan File) {
+	files := make(Files, 0, *limit)
 
 	for {
 		file, ok := <-fileChannel
 
 		if !ok {
+			files.PrintPath()
+			break
+		}
+
+		files.Add(file)
+	}
+}
+
+func scoreFiles(query string, fileChannel chan File, scoredFileChannel chan File) {
+	pattern := QueryMatcher(query)
+	exactMatcher := ExactQueryMatcher(query)
+
+	for {
+		file, ok := <-fileChannel
+
+		if !ok {
+			close(scoredFileChannel)
 			break
 		}
 
 		exactMatch := exactMatcher.MatchString(file.Name)
 
 		if exactMatch {
-			exactMatches = append(exactMatches, file)
+			file.Score = len(file.Name)
+			scoredFileChannel <- file
 			continue
 		}
 
 		nameMatch := pattern.MatchString(file.Name)
 
 		if nameMatch {
-			nameMatches = append(nameMatches, file)
+			file.Score = 10 * len(file.Path)
+			scoredFileChannel <- file
 			continue
 		}
 
 		pathMatch := pattern.MatchString(file.Path)
 
 		if pathMatch {
-			pathMatches = append(pathMatches, file)
+			file.Score = 100 * len(file.Path)
+			scoredFileChannel <- file
 			continue
 		}
 	}
-
-	var wg sync.WaitGroup
-
-	wg.Add(3)
-
-	go func() {
-		sort.Sort(ByPathLength{exactMatches})
-		wg.Done()
-	}()
-
-	go func() {
-		sort.Sort(ByPathLength{nameMatches})
-		wg.Done()
-	}()
-
-	go func() {
-		sort.Sort(ByPathLength{pathMatches})
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	printFiles(exactMatches)
-	printFiles(nameMatches)
-	printFiles(pathMatches)
 }
 
 func walkDir(dir string, exclude *regexp.Regexp, fileChannel chan File) {
