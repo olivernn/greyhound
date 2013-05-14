@@ -32,6 +32,7 @@ var help = flag.Bool("help", false, "Shows this message.")
 var query = flag.String("query", "", "File path pattern to search for.")
 var dir = flag.String("dir", "", "Directory to search in.")
 var exclude = flag.String("exclude", "", "Sub directories to exclude from search.")
+var limit = flag.Int("limit", 10, "Limit the number of files returned.")
 
 type FileChan chan File
 
@@ -45,7 +46,7 @@ func getSearchDir(dir string) string {
 }
 
 func filterFiles(fileChannel chan File) {
-	files := make(Files, 0, 10)
+	files := make(Files, 0, *limit)
 
 	for {
 		file, ok := <-fileChannel
