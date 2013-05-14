@@ -33,11 +33,6 @@ var query = flag.String("query", "", "File path pattern to search for.")
 var dir = flag.String("dir", "", "Directory to search in.")
 var exclude = flag.String("exclude", "", "Sub directories to exclude from search.")
 
-type File struct {
-	Name string
-	Path string
-}
-
 type FileChan chan File
 
 type Files []File
