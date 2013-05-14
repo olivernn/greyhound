@@ -20,12 +20,12 @@ func main() {
 	excludePattern := ExcludeMatcher(*exclude)
 
 	fileChannel := make(FileChan)
-  scoredFileChannel := make(FileChan)
+	scoredFileChannel := make(FileChan)
 
 	go walkDir(searchDir, excludePattern, fileChannel)
 
-  go scoreFiles(*query, fileChannel, scoredFileChannel)
-  filterFiles(scoredFileChannel)
+	go scoreFiles(*query, fileChannel, scoredFileChannel)
+	filterFiles(scoredFileChannel)
 }
 
 var help = flag.Bool("help", false, "Shows this message.")
@@ -45,18 +45,18 @@ func getSearchDir(dir string) string {
 }
 
 func filterFiles(fileChannel chan File) {
-  files := make(Files, 0, 10)
+	files := make(Files, 0, 10)
 
-  for {
-    file, ok := <-fileChannel
+	for {
+		file, ok := <-fileChannel
 
-    if !ok {
-      files.PrintPath()
-      break
-    }
+		if !ok {
+			files.PrintPath()
+			break
+		}
 
-    files.Add(file)
-  }
+		files.Add(file)
+	}
 }
 
 func scoreFiles(query string, fileChannel chan File, scoredFileChannel chan File) {
@@ -67,31 +67,31 @@ func scoreFiles(query string, fileChannel chan File, scoredFileChannel chan File
 		file, ok := <-fileChannel
 
 		if !ok {
-      close(scoredFileChannel)
+			close(scoredFileChannel)
 			break
 		}
 
 		exactMatch := exactMatcher.MatchString(file.Name)
 
 		if exactMatch {
-      file.Score = len(file.Name)
-      scoredFileChannel <- file
+			file.Score = len(file.Name)
+			scoredFileChannel <- file
 			continue
 		}
 
 		nameMatch := pattern.MatchString(file.Name)
 
 		if nameMatch {
-      file.Score = 10 * len(file.Path)
-      scoredFileChannel <- file
+			file.Score = 10 * len(file.Path)
+			scoredFileChannel <- file
 			continue
 		}
 
 		pathMatch := pattern.MatchString(file.Path)
 
 		if pathMatch {
-      file.Score = 100 * len(file.Path)
-      scoredFileChannel <- file
+			file.Score = 100 * len(file.Path)
+			scoredFileChannel <- file
 			continue
 		}
 	}
